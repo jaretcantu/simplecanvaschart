@@ -38,6 +38,24 @@ function SimpleCanvasChart(id, w, h) {
 	this.highlight = null;
 }
 
+// member constants
+SimpleCanvasChart.DEFAULT_COLORS = [
+		'#C00',
+		'#00C',
+		'#080',
+		'#888',
+		'#808',
+		'#088',
+		'#C80',
+		'#600',
+		'#006',
+		'#040',
+		'#333',
+		'#404',
+		'#840',
+		'#044',
+	];
+
 // static functions
 SimpleCanvasChart.mustGet = function(id) {
 	var el = document.getElementById(id);
@@ -78,8 +96,23 @@ SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
 	var minY = 0;
 	var maxY = 0;
 	var lastX = maxX-minX;
+	var defaultColorDex = 0;
 	for (e=0; e<data.length; e++) {
 		var el = data[e][2];
+		// Assign a color if one isn't provided
+		if (data[e][1] == '') {
+			if (defaultColorDex >=
+					SimpleCanvasChart.DEFAULT_COLORS.length)
+				// Generate a random color
+				data[e][1] = 'rgb(' +
+					Math.floor(Math.random()*256) + ',' +
+					Math.floor(Math.random()*256) + ',' +
+					Math.floor(Math.random()*256) + ')';
+			else
+				// Use a pre-approved color from a list
+				data[e][1] = SimpleCanvasChart.DEFAULT_COLORS[
+							defaultColorDex++];
+		}
 		for (l=0; l<=lastX; l++) {
 			var y = el[l];
 			if (y < minY) minY = y;
