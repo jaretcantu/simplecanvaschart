@@ -64,6 +64,46 @@ SimpleCanvasChart.mustGet = function(id) {
 	return el;
 }
 
+SimpleCanvasChart.addRange = function(rng, start, size) {
+	var stop = start + size;
+	// search for range
+	for (var i=0; i<rng.length; i++) {
+		var c = rng[i];
+		if (stop == c[0]) {
+			// Merge ranges
+			c[0] = start;
+			return start;
+		} else if (c[0] <= stop && c[1] > stop) {
+			// Readjust before this element
+			return SimpleCanvasChart.addRange(rng, c[0]-size, size);
+		} else if (stop < c[0]) {
+			// Insert range before
+			rng.splice(i, 0, [start,stop]);
+			return start;
+		} else if (start >= c[0] && start < c[1]) {
+			// Readjust after this element
+			return SimpleCanvasChart.addRange(rng, c[1], size);
+		} else if (start == c[1]) {
+			var nxt = i+1;
+			if (nxt>=rng.length || rng[nxt][0] > stop) {
+				// Join after and enough room to append
+				c[1] = stop;
+				return start;
+			} else { // Not enough room to append
+				// Merge nodes
+				c[1] = rng[nxt][1];
+				rng.splice(nxt, 1);
+				// Try again
+				return SimpleCanvasChart.addRange(rng,
+								  c[1], size);
+			}
+		}
+	}
+	// append new range
+	rng.push([start, stop]);
+	return start;
+}
+
 // member functions
 //  drawing functions
 SimpleCanvasChart.prototype.strokeLine = function(x1,y1, x2,y2, style, dash) {
@@ -90,9 +130,10 @@ SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
 	}	
 	this.highlight = null;
 
-	// determine minimum/maximum vertical values
+	// Determine minimum/maximum vertical values
 	// Initialize both to zero instead of +/-Infinity since we always want
 	// at least this extent.
+	// Also perform other preprocessing.
 	var minY = 0;
 	var maxY = 0;
 	var lastX = maxX-minX;
@@ -113,6 +154,7 @@ SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
 				data[e][1] = SimpleCanvasChart.DEFAULT_COLORS[
 							defaultColorDex++];
 		}
+		// Determine the min and max vertical range
 		for (l=0; l<=lastX; l++) {
 			var y = el[l];
 			if (y < minY) minY = y;
@@ -139,6 +181,7 @@ SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
 	var bot = this.canvas.height - this.paddingB;
 	var vrange = bot - this.padding;
 	var vview = maxY-minY;
+	var rng = [];
 	for (e=0; e<data.length; e++) {
 		var el = data[e][2];
 		var line = [];
@@ -146,6 +189,8 @@ SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
 			line.push(bot - vrange*(el[l-minX]-minY)/vview);
 		}
 		this.lines.push(line);
+		// Assign label position
+		data[e][3] = SimpleCanvasChart.addRange(rng,line[maxX-minX],10);
 	}
 
 	this.draw(); // update to new data set
@@ -257,8 +302,14 @@ SimpleCanvasChart.prototype.draw = function() {
 		ctx.stroke();
 
 		if (hl) continue; // print on top of other labels
+		// draw dot next to label
+		ctx.fillStyle = data[1];
+		ctx.beginPath();
+		ctx.arc(xIndeces[maxX]+(pad>>1), data[3]+3, 3, 0, 2*Math.PI);
+		ctx.fill();
+		// print label
 		ctx.fillStyle = this.fgColor;
-		ctx.fillText(data[0], xIndeces[maxX]+(pad>>2), line[maxX-minX]);
+		ctx.fillText(data[0], xIndeces[maxX]+pad, data[3]);
 	}
 
 	if (this.highlight) {
@@ -279,8 +330,8 @@ SimpleCanvasChart.prototype.draw = function() {
 
 		// print side label
 		ctx.fillStyle = '#CCCCCC';
-		var txtX = xIndeces[maxX]+(pad>>2);
-		var txtY = this.lines[hl[2]][maxX-minX];
+		var txtX = xIndeces[maxX]+pad;
+		var txtY = data[3];
 		ctx.fillRect(txtX-5, txtY-5,
 			     ctx.measureText(data[0]).width+10, 22);
 		ctx.fillStyle = this.fgColor;
