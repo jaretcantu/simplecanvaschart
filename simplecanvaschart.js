@@ -35,7 +35,7 @@ function SimpleCanvasChart(id, w, h) {
 	this.minY = 0;
 	this.maxY = 0;
 	this.xIndeces = {}; // hold pre-calculated values
-	this.highlight = null;
+	this.highlight = [];
 }
 
 // member constants
@@ -128,7 +128,7 @@ SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
 		this.minX = minX;
 		this.maxX = maxX;
 	}	
-	this.highlight = null;
+	this.highlight = [];
 
 	// Determine minimum/maximum vertical values
 	// Initialize both to zero instead of +/-Infinity since we always want
@@ -198,8 +198,8 @@ SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
 
 SimpleCanvasChart.prototype.unfocus = function() {
 	// Only redraw if there is something to unfocus
-	if (this.highlight == null) return;
-	this.highlight = null;
+	if (this.highlight.length == 0) return;
+	this.highlight = [];
 	this.draw();
 }
 
@@ -209,10 +209,28 @@ SimpleCanvasChart.mouseMove = function(evt) {
 SimpleCanvasChart.prototype.mouseMove = function(evt) {
 	if (evt) evt = window.event; // IE
 
-	// check if X is within a usable range
 	var x = (evt.clientX - this.canvas.offsetLeft
 			+ (document.documentElement.scrollLeft ||
 			   document.body.scrollLeft) ); // / zoomFactor
+	var y = (evt.clientY - this.canvas.offsetTop
+			+ (document.documentElement.scrollTop ||
+			   document.body.scrollTop) ); // / zoomFactor
+
+	// check if X is over a label
+	if (x > this.xIndeces[this.maxX]) {
+		this.highlight = [];
+		for (var d=0; d<this.data.length; d++) {
+			var labelY = this.data[d][3];
+			if (y >= labelY && y < labelY+22) {
+				this.highlight.push([x, y, d, this.maxX-1]);
+				break; // only draw one label
+			}
+		}
+		this.draw();
+		return true; // exit no matter what
+	}
+
+	// check if X is within a usable range of chart
 	for (var xx=this.minX; xx<=this.maxX; xx++) {
 		if (Math.abs(x - this.xIndeces[xx]) < this.padding)
 			break;
@@ -225,18 +243,21 @@ SimpleCanvasChart.prototype.mouseMove = function(evt) {
 	xx-= this.minX;
 
 	// check if Y is on a line
-	var y = (evt.clientY - this.canvas.offsetTop
-			+ (document.documentElement.scrollTop ||
-			   document.body.scrollTop) ); // / zoomFactor
+	var overP = false;
 	for (var d=0; d<this.lines.length; d++) {
 		if (Math.abs(y - this.lines[d][xx]) < this.padding) {
-			this.highlight = [x, y, d, xx];
-			this.draw();
-			return true;
+			if (!overP) {
+				overP = true;
+				this.highlight = [];
+			}
+			this.highlight.push([x, y, d, xx]);
 		}
 	}
 
-	this.unfocus();
+	if (overP)
+		this.draw();
+	else
+		this.unfocus();
 
 	return true;
 }
@@ -288,10 +309,17 @@ SimpleCanvasChart.prototype.draw = function() {
 	for (var e=0; e<this.data.length; e++) {
 		var data = this.data[e];
 		var line = this.lines[e];
-		var hl = (this.highlight && this.highlight[2] == e);
+		// check for highlight
+		var hl = false;
+		for (var hc=0; hc<this.highlight.length; hc++) {
+			if (this.highlight[hc][2] == e) {
+				hl = true;
+				break;
+			}
+		}
 		ctx.strokeStyle = data[1];
 		if (hl)
-			ctx.lineWidth = 3;
+			ctx.lineWidth = 4;
 		else
 			ctx.lineWidth = 2;
 		ctx.beginPath();
@@ -312,8 +340,8 @@ SimpleCanvasChart.prototype.draw = function() {
 		ctx.fillText(data[0], xIndeces[maxX]+pad, data[3]);
 	}
 
-	if (this.highlight) {
-		var hl = this.highlight;
+	for (var hc=0; hc<this.highlight.length; hc++) {
+		var hl = this.highlight[hc];
 		var data = this.data[hl[2]];
 		var pt = Math.round(100*data[2][hl[3]])/100.0;
 		var tp = 5;
@@ -321,21 +349,28 @@ SimpleCanvasChart.prototype.draw = function() {
 		var txtH = 12 + (tp<<1);
 		var hlX = hl[0] - (txtW>>1);
 		var hlY = hl[1] - txtH;
-		ctx.fillStyle = '#CCCCCC';
-		ctx.globalAlpha = 0.5;
-		ctx.fillRect(hlX, hlY, txtW, txtH );
-		ctx.globalAlpha = 1;
-		ctx.fillStyle = this.fgColor;
-		ctx.fillText(pt, hlX+tp, hlY+tp);
+		if (hc == 0) { // only draw this once
+			ctx.fillStyle = '#CCCCCC';
+			ctx.globalAlpha = 0.5;
+			ctx.fillRect(hlX, hlY, txtW, txtH );
+			ctx.globalAlpha = 1;
+			ctx.fillStyle = this.fgColor;
+			ctx.fillText(pt, hlX+tp, hlY+tp);
+		}
 
 		// print side label
 		ctx.fillStyle = '#CCCCCC';
 		var txtX = xIndeces[maxX]+pad;
 		var txtY = data[3];
-		ctx.fillRect(txtX-5, txtY-5,
-			     ctx.measureText(data[0]).width+10, 22);
+		ctx.fillRect(txtX-2, txtY-2,
+			     ctx.measureText(data[0]).width+4, 15);
 		ctx.fillStyle = this.fgColor;
 		ctx.fillText(data[0], txtX, txtY);
+		// draw dot next to label
+		ctx.fillStyle = data[1];
+		ctx.beginPath();
+		ctx.arc(xIndeces[maxX]+(pad>>1), data[3]+3, 3, 0, 2*Math.PI);
+		ctx.fill();
 	}
 	
 	ctx.restore();
