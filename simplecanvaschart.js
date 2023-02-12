@@ -1,6 +1,6 @@
 /* simplecanvaschart.js
  * Simple chart creator for HTML5 Canvas
- * Copyright (C) 2022 Jaret Jay Cantu
+ * Copyright (C) 2022-2023 Jaret Jay Cantu
  * Licensed under the AGPL
  */
 
