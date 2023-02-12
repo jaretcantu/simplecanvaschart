@@ -75,7 +75,7 @@ SimpleCanvasChart.addRange = function(rng, start, size) {
 			return start;
 		} else if (c[0] <= stop && c[1] > stop) {
 			// Readjust before this element
-			return SimpleCanvasChart.addRange(rng, c[0]-size, size);
+			return SimpleCanvasChart.addRange(rng, start-size,size);
 		} else if (stop < c[0]) {
 			// Insert range before
 			rng.splice(i, 0, [start,stop]);
@@ -120,10 +120,18 @@ SimpleCanvasChart.prototype.strokeLine = function(x1,y1, x2,y2, style, dash) {
 	ctx.restore();
 }
 
+SimpleCanvasChart.pointSort = function(a, b, level) {
+	var va = a[level];
+	var vb = b[level];
+	if (va < vb) return -1;
+	if (va > vb) return  1;
+	if (level <= 1) return 0;
+	return SimpleCanvasChart.pointSort(a, b, level-1);
+}
+
 SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
 	var l, e;
 
-	this.data = data;
 	if (arguments.length > 1) {
 		this.minX = minX;
 		this.maxX = maxX;
@@ -176,22 +184,29 @@ SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
 				Math.floor(vw * (l-minX)/hview);
 	}
 
+	var sortedData = data.sort(function(a,b) {
+			return SimpleCanvasChart.pointSort(a[2],b[2], 15);
+		});
+
 	// Populate points for use in draw and mouseOver
 	this.lines = [];
 	var bot = this.canvas.height - this.paddingB;
 	var vrange = bot - this.padding;
 	var vview = maxY-minY;
 	var rng = [];
-	for (e=0; e<data.length; e++) {
-		var el = data[e][2];
+	for (e=0; e<sortedData.length; e++) {
+		var el = sortedData[e][2];
 		var line = [];
 		for (l=minX; l<=maxX; l++) {
 			line.push(bot - vrange*(el[l-minX]-minY)/vview);
 		}
 		this.lines.push(line);
 		// Assign label position
-		data[e][3] = SimpleCanvasChart.addRange(rng,line[maxX-minX],10);
+		sortedData[e][3] =
+			SimpleCanvasChart.addRange(rng,line[maxX-minX],10);
 	}
+
+	this.data = sortedData;
 
 	this.draw(); // update to new data set
 }
