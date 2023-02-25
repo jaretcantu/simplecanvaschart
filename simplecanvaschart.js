@@ -30,6 +30,7 @@ function SimpleCanvasChart(id, w, h) {
 
 	this.data = [];
 	this.lines = [];
+	this.lineStyle = [];
 	this.minX = 0;
 	this.maxX = 0;
 	this.minY = 0;
@@ -62,6 +63,12 @@ SimpleCanvasChart.mustGet = function(id) {
 	if (!el)
 		throw("Could not find element " + id);
 	return el;
+}
+
+SimpleCanvasChart.inRange = function(a,b, p) {
+	var min = (a<b ? a:b);
+	var max = (a>b ? a:b);
+	return (max-min) <= (p*max);
 }
 
 SimpleCanvasChart.addRange = function(rng, start, size) {
@@ -208,6 +215,90 @@ SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
 
 	this.data = sortedData;
 
+	// Check for overlaps
+	var overlap = {};
+	for (e=0; e<this.lines.length; e++) {
+		var line = this.lines[e];
+		for (var e2=e+1; e2<this.lines.length; e2++) {
+			var line2 = this.lines[e2];
+			for (l=minX; l<maxX; l++) {
+				var x = l-minX;
+				// check if start/stop of points overlap
+				if (!(SimpleCanvasChart.inRange(
+						line[x], line2[x], 0.01) &&
+				      SimpleCanvasChart.inRange(
+						line[x+1], line2[x+1], 0.01)))
+					continue;
+				var ol1, ol2;
+				if (!isDefined(overlap[e]))
+					overlap[e] = {};
+				if (!isDefined(overlap[e2]))
+					overlap[e2] = {};
+				// check for pre-existing overlaps
+				if (isDefined(overlap[e][x]))
+					ol1 = overlap[e][x];
+				else
+					ol1 = null;
+				if (isDefined(overlap[e2][x]))
+					ol2 = overlap[e2][x];
+				else
+					ol2 = null;
+				// merge overlaps
+				if (ol1 === null && ol2 === null) {
+					ol1 = [];
+					ol2 = ol1;
+				} else if (ol2 === null) {
+					ol2 = ol1;
+				} else if (ol1 === null) {
+					ol1 = ol2;
+				} else if (ol1 !== ol2) {
+					// if not already the same, combine
+					var old = ol1.slice();
+					for (var c=0; c<ol2.length; c++) {
+						if (ol1.indexOf(ol2[c]) == -1)
+							ol1.push(ol2[c]);
+					}
+					ol2 = ol1;
+				}
+				// add the points if they aren't already in
+				if (ol1.indexOf(e) == -1) ol1.push(e);
+				if (ol1.indexOf(e2) == -1) ol1.push(e2);
+				// save back into overlap map
+				overlap[e][x] = ol1;
+				overlap[e2][x] = ol2;
+			}
+		}
+	}
+
+	// Set dashes based on overlap
+	this.lineStyle = [];
+	for (e=0; e<this.lines.length; e++) {
+		var line = this.lines[e];
+		var ls = [];
+		for (l=minX; l<maxX; l++) {
+			var x = l-minX;
+			if (!isDefined(overlap[e]) ||
+			    !isDefined(overlap[e][x])) {
+				ls.push(null);
+			} else {
+				var ol = overlap[e][x];
+				var segCnt = ol.length;
+				var segOn = ol.indexOf(e);
+				var segSz = Math.ceil(
+				     (this.xIndeces[minX+1]-this.xIndeces[minX])
+							/ (2*segCnt));
+				if (segOn == 0)
+					ls.push([segSz, segSz*(segCnt-1)]);
+				else if (segOn == (segCnt-1))
+					ls.push([0, segSz*(segCnt-1), segSz,0]);
+				else // turn off, then on, then off again
+					ls.push([0, segSz*segOn, segSz,
+						    segSz*(segCnt-segOn-1)]);
+			}
+		}
+		this.lineStyle.push(ls);
+	}
+
 	this.draw(); // update to new data set
 }
 
@@ -324,6 +415,7 @@ SimpleCanvasChart.prototype.draw = function() {
 	for (var e=0; e<this.data.length; e++) {
 		var data = this.data[e];
 		var line = this.lines[e];
+		var ls = this.lineStyle[e];
 		// check for highlight
 		var hl = false;
 		for (var hc=0; hc<this.highlight.length; hc++) {
@@ -337,12 +429,17 @@ SimpleCanvasChart.prototype.draw = function() {
 			ctx.lineWidth = 4;
 		else
 			ctx.lineWidth = 2;
-		ctx.beginPath();
-		ctx.moveTo(xIndeces[minX], line[0]);
-		for (l=minX+1; l<=maxX; l++) {
-			ctx.lineTo(xIndeces[l], line[l-minX]);
+		for (l=minX; l<maxX; l++) {
+			var x = l-minX;
+			ctx.beginPath();
+			ctx.moveTo(xIndeces[l], line[x]);
+			if (hl || ls[x] === null)
+				ctx.setLineDash([]);
+			else
+				ctx.setLineDash(ls[x]);
+			ctx.lineTo(xIndeces[l+1], line[x+1]);
+			ctx.stroke();
 		}
-		ctx.stroke();
 
 		if (hl) continue; // print on top of other labels
 		// draw dot next to label
