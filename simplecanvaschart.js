@@ -178,9 +178,11 @@ SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
 			if (y > maxY) maxY = y;
 		}
 	}
+
 	// Convert to a nice, round boundary
-	minY = Math.floor(minY/10)*10;
-	maxY = Math.ceil(maxY/10)*10;
+	var round = (maxY > 5000 ? 100 : maxY > 100 ? 10 : 5);
+	minY = Math.floor(minY/round)*round;
+	maxY = Math.ceil(maxY/round)*round;
 	this.minY = minY;
 	this.maxY = maxY;
 
