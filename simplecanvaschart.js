@@ -9,6 +9,7 @@ function SimpleCanvasChart(id, w, h) {
 	// XXX Maybe move this into a resize() function
 	this.area = SimpleCanvasChart.mustGet(id);
 
+	this.title = '';
 	this.canvas = document.createElement('canvas');
 	this.canvas.width = w;
 	this.canvas.height = h;
@@ -24,6 +25,7 @@ function SimpleCanvasChart(id, w, h) {
 	this.padding = Math.floor(Math.min(w,h) * 0.02);
 	this.paddingB = this.padding<<1;
 	this.paddingR = this.padding<<3;
+	this.titleSize = 20;
 
 	this.fgColor = "#000000";
 	this.bgColor = "#ffffff";
@@ -138,13 +140,14 @@ SimpleCanvasChart.pointSort = function(a, b, level) {
 	return SimpleCanvasChart.pointSort(a, b, level-1);
 }
 
-SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
+SimpleCanvasChart.prototype.setData = function(data, minX, maxX, title) {
 	var l, e;
 
 	if (arguments.length > 1) {
 		this.minX = minX;
 		this.maxX = maxX;
 	}	
+	this.title = (isDefined(title) ? title : '');
 	this.highlight = [];
 
 	// Determine minimum/maximum vertical values
@@ -202,7 +205,7 @@ SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
 	// Populate points for use in draw and mouseOver
 	this.lines = [];
 	var bot = this.canvas.height - this.paddingB;
-	var vrange = bot - this.padding;
+	var vrange = bot - this.padding - (title ? this.titleSize : 0);
 	var vview = maxY-minY;
 	var rng = [];
 	var rngSz = 10;
@@ -402,6 +405,7 @@ SimpleCanvasChart.prototype.draw = function() {
 	var h = this.canvas.height;
 	var bot = h-this.paddingB;
 	var botL = bot + (bot-pad) * (minY)/(maxY-minY);
+	var padT = this.padding + (this.title ? this.titleSize : 0);
 	var l;
 
 	ctx.save();
@@ -413,23 +417,31 @@ SimpleCanvasChart.prototype.draw = function() {
 	ctx.lineWidth = 2;
 	ctx.fillStyle = this.fgColor;
 	ctx.textBaseline = 'top';
+	if (this.title) {
+		ctx.save();
+		ctx.font = "bold " + this.titleSize + "px sans-serif";
+		ctx.fillText(this.title, // top label
+			(w>>1) - (ctx.measureText(this.title).width>>1),
+			pad>>2);
+		ctx.restore();
+	}
 	ctx.font = "12px sans-serif";
-	this.strokeLine(pad-tEx,pad, pad+tEx,pad); // left line topper
-	ctx.fillText(maxY, (pad*3)>>1,pad); // top label
+	this.strokeLine(pad-tEx,padT, pad+tEx,padT); // left line topper
+	ctx.fillText(maxY, (pad*3)>>1,padT); // top label
 	var dash = [2, pad];
 	for (l=minX; l<=maxX; l++) {
 		// draw label
 		ctx.fillText(l, xIndeces[l]-tEx, bot+(tEx<<1));
 		if (l == minX) continue;
 		// draw guide lines
-		this.strokeLine(xIndeces[l], pad, xIndeces[l], bot,
+		this.strokeLine(xIndeces[l], padT, xIndeces[l], bot,
 				"#dddddd", dash);
 		// draw a tick for each level
 		this.strokeLine(xIndeces[l], botL-tEx, xIndeces[l], botL+tEx);
 	}
 
 	// draw legend under guide lines
-	this.strokeLine(pad,pad, pad,bot); // left line
+	this.strokeLine(pad,padT, pad,bot); // left line
 	this.strokeLine(pad,botL, w-this.paddingR,botL); // bottom line
 
 	// draw lines
