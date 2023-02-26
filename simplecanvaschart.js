@@ -97,6 +97,8 @@ SimpleCanvasChart.addRange = function(rng, start, size) {
 				c[1] = stop;
 				return start;
 			} else { // Not enough room to append
+				// Account for the space that is here
+				size = (stop - rng[nxt][0]);
 				// Merge nodes
 				c[1] = rng[nxt][1];
 				rng.splice(nxt, 1);
@@ -201,16 +203,33 @@ SimpleCanvasChart.prototype.setData = function(data, minX, maxX) {
 	var vrange = bot - this.padding;
 	var vview = maxY-minY;
 	var rng = [];
+	var rngSz = 10;
 	for (e=0; e<sortedData.length; e++) {
 		var el = sortedData[e][2];
 		var line = [];
 		for (l=minX; l<=maxX; l++) {
-			line.push(bot - vrange*(el[l-minX]-minY)/vview);
+			line.push(Math.round(bot - vrange*(el[l-minX]-minY)
+						/vview));
 		}
 		this.lines.push(line);
-		// Assign label position
-		sortedData[e][3] =
-			SimpleCanvasChart.addRange(rng,line[maxX-minX],10);
+		// Reserve label position
+		SimpleCanvasChart.addRange(rng,line[maxX-minX],rngSz);
+	}
+	// Assign label position completely sorted
+	var r = 0;
+	var subR = 0;
+	rng = rng.sort(function(a,b) { return a[0]-b[0]; });
+	for (e=sortedData.length-1; e>=0; e--) { // We want highest to lowest
+		var pos = rng[r][0] + subR;
+		var nr = pos + rngSz;
+		if (nr > rng[r][1]) {
+			r++;
+			subR = 0;
+			e++;
+			continue;
+		}
+		sortedData[e][3] = pos;
+		subR+= rngSz;
 	}
 
 	this.data = sortedData;
