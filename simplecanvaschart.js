@@ -79,12 +79,21 @@ SimpleCanvasChart.addRange = function(rng, start, size) {
 	for (var i=0; i<rng.length; i++) {
 		var c = rng[i];
 		if (stop == c[0]) {
+			// Check to see if this will push us negative
+			if (start < 5) {
+				// Account for the space that is here
+				size-= c[0]-5;
+				c[0] = 5;
+				// Try again
+				return SimpleCanvasChart.addRange(rng,
+								  c[1], size);
+			}
 			// Merge ranges
 			c[0] = start;
 			return start;
 		} else if (c[0] <= stop && c[1] > stop) {
 			// Readjust before this element
-			return SimpleCanvasChart.addRange(rng, start-size,size);
+			return SimpleCanvasChart.addRange(rng, c[0]-size,size);
 		} else if (stop < c[0]) {
 			// Insert range before
 			rng.splice(i, 0, [start,stop]);
